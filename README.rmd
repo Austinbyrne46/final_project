@@ -21,9 +21,5 @@ library(tidyverse)
 list.files('code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
 ```
 
-```{r}
-Texevier::create_template(directory = "C:/Users/austi/OneDrive/Desktop/Masters/Financial Econometrics/final_project",
-                          template_name = "DCC_GARCH_22582053",
-                          build_project = T, open_project = T)
-```
+
 
