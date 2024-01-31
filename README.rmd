@@ -128,3 +128,374 @@ LCL_Indices_wide <- LCL_Indices_Cleaned %>%
 
 In this code chunk I run the correlation analysis using the cor function. Here I exclude the date column because it is not needed when running the correlation matrix. In this next code chunk I will attempt to write code that will identify highly correlated index pairs. Then I will be able to make a better decision on which index pairs to evaluate in the volatility model. 
 
+
+```{r}
+# Calculating the correlation matrix for index returns
+cor_matrix <- cor(LCL_Indices_wide[,-1], use = "complete.obs")
+
+cor_matrix
+
+```
+
+### Identifying Highly Correlated Indices
+
+To identify indices that are highly correlated, which could indicate similar movements:
+
+```{r}
+# Setting a threshold for identifying high correlations
+high_corr_threshold <- 0.9
+
+# Finding index pairs with correlations above the threshold
+high_corr_indices <- which(abs(cor_matrix) > high_corr_threshold, arr.ind = TRUE)
+
+# Excluding self-correlation (diagonal elements)
+high_corr_indices <- high_corr_indices[high_corr_indices[, 1] != high_corr_indices[, 2], ]
+
+# Ensuring unique pairs are identified to avoid duplication
+unique_high_corr_indices <- unique(t(apply(high_corr_indices, 1, sort)))
+
+# Associating the indices names with the high correlation pairs
+high_corr_pairs <- apply(unique_high_corr_indices, 1, function(idx) {
+  return(colnames(cor_matrix)[idx])
+})
+
+# The resulting pairs are as follows:
+high_corr_pairs
+
+```
+
+Here I decided that a correlation above 0.9 relates to indexes which are strongly correlated and which may provide issues latter on in the analysis. I take this information into consideration in my next section where I select which indexes to use in this analysis. 
+
+## Data Selection
+
+### Index selection
+
+Based on the information obtained from the correlation analysis above I select the ALSI, Financials, Industrials, jsapy, Resources as the indexes I will conduct my volatility analysis on. Not only are these indexes not highly correlated but also will prove a broad view of the overall market.  
+
+```{r}
+# Defining the indices to include in the analysis
+selected_indices <- c("ALSI", "Financials", "Industrials", "jsapy", "Resources")
+
+# Filtering the data set to keep only the selected indices
+LCL_Indices_Selected <- LCL_Indices_Cleaned %>%
+  filter(Name %in% selected_indices)
+
+```
+
+The cleaned data set is now altered to only include the above mentioned variables. The LCL_Indicies_Selected data frame will be used for further analysis. 
+
+# Data Visualization
+
+## Time Series Analysis of Returns
+
+In this next section I aim to visually analyse the return structure of the selected indexes. I do this by plotting time series plots of their respective returns. Through these plots I am able to see which indexes have the highest volatility in returns and visualize period of low and high returns. 
+
+```{r}
+# Using ggplot2 to create time series plots of the selected indices' returns
+Index_return_plot <- ggplot(LCL_Indices_Selected, aes(x = date, y = Returns, color = Name)) + 
+  geom_line() + 
+  facet_wrap(~Name, scales = "fixed") +  # Ensures comparable y-axis scales across facets
+  theme_minimal() +
+  ggtitle("Time Series Plot of Indices Returns with Fixed Y-Axis")
+
+# Displaying the plot
+Index_return_plot
+
+```
+The facet_wrap function is used with scales = "fixed" to ensure that each index is plotted with the same y-axis scale, making it easier to compare the relative volatility and magnitude of returns across different indices.
+
+## Analyzing the Distribution of Returns
+
+In an attempt to add to the analysis done above with respect to the return structure I plot the distribution of returns for each index through a histogram plot. Here I will be able to visualize whether there are any fat tails or skewed returns in any of the series. 
+
+```{r}
+# Creating histograms for the distribution of returns for each index
+Return_distribution_hist <- ggplot(LCL_Indices_Selected, aes(x = Returns, fill = Name)) + 
+  geom_histogram(bins = 30, color = "black") +
+  facet_wrap(~Name, scales = "fixed") +  # Fixed scales for x-axis across facets
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Tilting x-axis labels for readability
+  ggtitle("Distribution of Returns for Indices with Fixed X-Axis")
+
+Return_distribution_hist
+
+```
+
+In this plot:
+
+-Bins: Set to 30 to balance the granularity and readability of the histogram.
+-Facet Wrap: Used with scales = "fixed" to ensure the x-axis (representing returns) is consistently scaled across different indices, allowing for direct comparison.
+-Axis Text: The x-axis labels are tilted for better readability, especially useful when dealing with numerous data points or overlapping labels.
+
+This histogram provides insights into the typical range of returns and the presence of any extreme values, which is valuable for understanding the risk profile associated with each index.
+
+
+# Time Range Specification and Data Filtering
+
+## Determining Date Ranges for Each Index
+
+A main step in this analysis requires me to transform my data to xts format. In doing so if not all the data runs through the same dates, NA's will be produced and thus hinder my analysis. I therefore use the following code to evaluate the date range for each index. I am then able to wrangle the data to ensure all the indexes data starts and ends on the same date. 
+
+```{r}
+# Calculating the date range for each index
+date_ranges <- LCL_Indices_Selected %>%
+  group_by(Name) %>%
+  summarize(Start_Date = min(date, na.rm = TRUE),
+            End_Date = max(date, na.rm = TRUE))
+
+# Viewing the date ranges
+date_ranges
+
+```
+
+## Consistent Time Range for Analysis
+
+Given the results from above I state a start and end date of 2002-02-28 and 2023-11-30 repectively. This will ensure that there are no NA's produced when the data is transformed to xts. 
+
+```{r}
+# Defining a consistent time range for the analysis
+start_date <- as.Date("2002-02-28")  # Start date
+end_date <- as.Date("2023-11-30")    # End date
+
+# Filtering the data set for the defined time range
+LCL_Indices_Filtered <- LCL_Indices_Selected %>%
+  filter(date >= start_date & date <= end_date)
+
+```
+
+
+# Time Series Conversion and Preliminary Testing
+
+## Converting Data to Time Series Format
+
+As mentioned when working with GARCH models is very important to transform the data to xts. To do this I make use of the tbl2xts package. 
+
+```{r}
+# Loading necessary libraries
+pacman::p_load("tbl2xts", "MTS")
+
+# Converting the filtered dataset to an xts object for time series analysis
+xts_rtn <- LCL_Indices_Filtered %>% tbl_xts(., cols_to_xts = "Returns", spread_by = "Name")
+
+```
+
+## Preliminary Testing for ARCH Effects
+
+Before I fit any GARCH models to my data I need evaluate the presence of any ARCH effects. If there are no ARCH effects present, it does not make sense to run any GARCH models for this volatility analysis. To test for ARCH effects I perform the McLeod-Li test. This test checks for autoregressive conditional heteroskedasticity (ARCH) in the time series data. If present the p-values will be very close to 0, indicating that the volatility within the variables changes over time. Thus, it is viable to use GARCH models. 
+
+```{r}
+# Performing the McLeod-Li test to check for ARCH effects
+MarchTest(xts_rtn)
+
+```
+
+# Advanced Volatility Modeling
+
+## Preprocessing for DCC-GARCH Model
+
+In this section I aim to use the DCC-GARCH model to conduct a volatility modeling analysis of the selected Indexes. To do so I need to first pre process the xts data using the dccPre function from the rmgarch package. 
+
+```{r}
+# Loading the rmgarch library for advanced GARCH modeling
+library(rmgarch)
+
+# Preprocessing the data using dccPre function from rmgarch
+# This includes specifying that the mean of each series is included in the model (include.mean = TRUE)
+# and setting the autoregressive order for the mean equation to zero (p = 0)
+DCCPre <- dccPre(xts_rtn, include.mean = TRUE, p = 0) 
+
+```
+
+In this preprocessing step:
+
+- include.mean = TRUE ensures that the mean of each time series is considered in the model.
+- p = 0 indicates that we are not using past values of the series (no autoregressive terms) in the mean equation.
+
+# Volatility Estimates Extraction
+
+With the preprocessing completed, we now extract the volatility estimates for each time series:
+
+```{r}
+# Loading necessary library
+pacman::p_load("zoo")
+
+# Extracting the marginal volatilities from the DCC preprocessing output
+Vol <- DCCPre$marVol
+colnames(Vol) <- colnames(xts_rtn)
+
+# Converting to a data frame and adding the date column back
+Vol <- data.frame(cbind(date = index(xts_rtn), Vol)) %>%
+  mutate(date = as.Date(date)) %>%  # Convert to Date format
+  tbl_df()
+
+# Reshaping the data for plotting
+TidyVol <- Vol %>% gather(Indexes, Sigma, -date)
+
+```
+
+## Visualizing Volatility Estimates
+
+To compare the volatility of each index, we create a plot showing the time series of volatilities:
+
+```{r}
+# Creating the volatility comparison plot
+Volatility_Comparison_Plot <- ggplot(TidyVol, aes(x = date, y = Sigma, colour = Indexes)) +
+  geom_line() +
+  theme_minimal() +
+  ggtitle("Volatility Comparison Plot")  # Adding a title to the plot
+
+# Displaying the plot
+print(Volatility_Comparison_Plot)
+
+```
+
+This plot provides a visual comparison of how the volatility of each index has evolved over time, highlighting periods of heightened or reduced market uncertainty.
+
+## Preparing for DCC Model Fitting
+
+When fitting the DCC model it is crucial to have the standardized residuals. Thus, they are extracted as follows. 
+
+To fit the DCC model on the standardized residuals in use the dccFit function. However, it is importnat to note that you have to detach the tidyverse and tbl2xts packages from your environment because these packages create clashes in the code if still loaded. 
+
+```{r}
+# Extracting standardized residuals from the DCC preprocessing output
+StdRes <- DCCPre$sresi
+
+# Detaching packages that clash with the dccFit package. 
+detach("package:tidyverse", unload=TRUE)
+detach("package:tbl2xts", unload=TRUE)
+
+# Fitting the DCC model to the standardized residuals
+DCC <- dccFit(StdRes, type="Engle")
+
+```
+
+
+## Reinitializing Required Packages
+
+Once I have fit the DCC model on the standardized residuals I am able to reload the tidyverse and tbl2xts packages back into the environment. 
+
+```{r}
+# Reloading tidyverse, tbl2xts, and broom packages
+pacman::p_load("tidyverse", "tbl2xts", "broom")
+
+```
+
+## Processing DCC Model Output
+
+Here I extract the rho variable from the results which illustrates correlation and make use of a function to increase interpretability and process the results. 
+
+```{r}
+# Extracting time-varying correlations from the DCC model
+Rhot <- DCC$rho.t
+
+# Function to rename and reformat the DCC correlations for visualization
+renamingdcc <- function(ReturnSeries, DCC.TV.Cor) {
+    ncolrtn <- ncol(ReturnSeries)
+    namesrtn <- colnames(ReturnSeries)
+
+    nam <- c()
+    xx <- mapply(rep, times = ncolrtn:1, x = namesrtn)
+
+    for (j in 1:(ncolrtn)) {
+        for (i in 1:(ncolrtn)) {
+            nam[(i + (j-1)*(ncolrtn))] <- paste(xx[[j]][1], xx[[i]][1], sep="_")
+        }
+    }
+
+    colnames(DCC.TV.Cor) <- nam
+    DCC.TV.Cor <- data.frame(cbind(date = index(ReturnSeries), DCC.TV.Cor)) %>%
+        mutate(date = as.Date(date)) %>% tbl_df()
+    DCC.TV.Cor <- DCC.TV.Cor %>% gather(Pairs, Rho, -date)
+
+    return(DCC.TV.Cor)
+}
+
+# Applying the renaming function to the DCC correlations
+Rhot <- renamingdcc(ReturnSeries = xts_rtn, DCC.TV.Cor = Rhot)
+
+# Displaying the first few rows of the processed correlations
+head(Rhot %>% arrange(date))
+
+```
+
+
+
+
+# Results 
+
+## Visualizing Dynamic Conditional Correlations
+
+TO provide visualization into market dynamics I plot the Dynamic correlation between each index and the others. By doing so I am able to identify the time varying correlations between indexes. Through these plots I am able to evaluate how the correlations between indexes changes over time. I plot the Dynamic Conditional Correlations using the ggplot function. 
+
+### Dynamic correlations with ALSI
+
+```{r}
+pacman::p_load(ggthemes)
+
+# Creating a plot for the dynamic correlations of ALSI with other indices
+g1 <- ggplot(Rhot %>% filter(grepl("ALSI_", Pairs), !grepl("_ALSI", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: ALSI")
+
+# Displaying the plot
+print(g1)
+
+```
+
+### Dynamic correlations with Financials 
+
+```{r}
+# Creating a plot for the dynamic correlations of Financials with other indices
+g2 <- ggplot(Rhot %>% filter(grepl("Financials_", Pairs), !grepl("_Financials", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: Financials")
+
+# Displaying the plot
+print(g2)
+
+```
+
+### Dynamic correlations with Industrials 
+
+```{r}
+# Creating a plot for the dynamic correlations of Industrials with other indices
+g3 <- ggplot(Rhot %>% filter(grepl("Industrials_", Pairs), !grepl("_Industrials", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: Industrials")
+
+# Displaying the plot
+print(g3)
+
+```
+
+### Dynamic correlations with Resources 
+
+```{r}
+# Creating a plot for the dynamic correlations of Resources with other indices
+g4 <- ggplot(Rhot %>% filter(grepl("Resources_", Pairs), !grepl("_Resources", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: Resources")
+
+# Displaying the plot
+print(g4)
+
+```
+
+### Dynamic correlations with jsapy
+
+```{r}
+# Creating a plot for the dynamic correlations of jsapy with other indices
+g5 <- ggplot(Rhot %>% filter(grepl("jsapy_", Pairs), !grepl("_jsapy", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: jsapy")
+
+# Displaying the plot
+print(g5)
+
+```
