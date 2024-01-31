@@ -92,7 +92,7 @@ output:
     fig_width: 3.5 # Adjust default figure sizes. This can also be done in the chunks of the text.
     fig_height: 3.5
 abstract: |
-  Abstract to be written here. The abstract should not be too long and should provide the reader with a good understanding what you are writing about. Academic papers are not like novels where you keep the reader in suspense. To be effective in getting others to read your paper, be as open and concise about your findings here as possible. Ideally, upon reading your abstract, the reader should feel he / she must read your paper in entirety.
+  The main aim of this study is to evaluate the volatility structure of local equities. This analysis will be achieved by making use of DCC-GARCH multivariate volatility model. Through this analysis I indetify the most volatile index/sector to be the Resource sector, while the ALSI and Industrial sector to hold the lowest volatility. 
 ---
 
 <!-- First: Set your default preferences for chunk options: -->
@@ -108,12 +108,96 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.width 
 # Lets load in example data, and see how this can be stored and later called from your 'data' folder.
 if(!require("tidyverse")) install.packages("tidyverse")
 library(tidyverse)
-Example_data <- Texevier::Ex_Dat
+library(MTS)
+library(robustbase)
+library(gt)
+library(dplyr)
+library(lubridate)
+library(zoo)
+library(tidyr)
+library(tseries)
+library(PortfolioAnalytics)
+library(ggplot2)
+library(RcppRoll)
+library(tbl2xts)
+library(fmxdat)
+library(rmsfuns)
+library(PerformanceAnalytics)
+list.files('code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
 
-# Notice that as you are working in a .Rproj file (I am assuming you are) - the relative paths of your directories start at your specified root.
-# This means that when working in a .Rproj file, you never need to use getwd() - it is assumed as your base root automatically.
-write_rds(Example_data, path = "data/Example_data.rds")
 
+```
+
+```{r}
+#Loading the relevant data
+LCL_Indices <- readRDS("C:/Users/austi/OneDrive/Desktop/Masters/Financial Econometrics/Project/DCC_GARCH_volatility_model/data/LCL_Indices (1).rds")
+#LCL_Stock_Returns <- readRDS("C:/Users/austi/OneDrive/Desktop/Masters/Financial Econometrics/Project/DCC_GARCH_volatility_model/data/LCL_Stock_Returns (1).rds")
+```
+
+```{r, include=FALSE}
+#Checking how many total observations we have
+nrow(LCL_Indices)
+
+# For LCL_Indices data set
+sum(is.na(LCL_Indices))
+
+# For LCL_Stock_Returns data set
+#sum(is.na(LCL_Stock_Returns))
+```
+
+```{r, include=FALSE}
+#Creating a new cleaned data set that has no NA's 
+LCL_Indices_Cleaned <- na.omit(LCL_Indices)
+
+#Evaluating whether the NA's have been removed successfully
+sum(is.na(LCL_Indices_Cleaned))
+
+#Evaluating the amount of data still available
+nrow(LCL_Indices_Cleaned)
+```
+
+
+```{r}
+# Reshaping the LCL_Indices_Cleaned data to a wide format
+LCL_Indices_wide <- LCL_Indices_Cleaned %>%
+  select(date, Name, Returns) %>%
+  spread(Name, Returns)
+
+```
+
+```{r}
+# Calculating the correlation matrix for index returns
+cor_matrix <- cor(LCL_Indices_wide[,-1], use = "complete.obs")
+
+```
+
+```{r}
+# Setting a threshold for identifying high correlations
+high_corr_threshold <- 0.9
+
+# Finding index pairs with correlations above the threshold
+high_corr_indices <- which(abs(cor_matrix) > high_corr_threshold, arr.ind = TRUE)
+
+# Excluding self-correlation (diagonal elements)
+high_corr_indices <- high_corr_indices[high_corr_indices[, 1] != high_corr_indices[, 2], ]
+
+# Ensuring unique pairs are identified to avoid duplication
+unique_high_corr_indices <- unique(t(apply(high_corr_indices, 1, sort)))
+
+# Associating the indices names with the high correlation pairs
+high_corr_pairs <- apply(unique_high_corr_indices, 1, function(idx) {
+  return(colnames(cor_matrix)[idx])
+})
+
+```
+
+```{r}
+# Define the indices to include in the analysis
+selected_indices <- c("ALSI", "Financials", "Industrials", "jsapy", "Resources")
+
+# Filter the dataset to keep only the selected indices
+LCL_Indices_Selected <- LCL_Indices_Cleaned %>%
+  filter(Name %in% selected_indices)
 ```
 
 
@@ -123,272 +207,128 @@ write_rds(Example_data, path = "data/Example_data.rds")
 
 # Introduction \label{Introduction}
 
-References are to be made as follows: @fama1997[p. 33] and @grinold2000 Such authors could also be referenced in brackets [@grinold2000] and together [@fama1997 \& @grinold2000]. Source the reference code from scholar.google.com by clicking on ``cite'' below article name. Then select BibTeX at the bottom of the Cite window, and proceed to copy and paste this code into your ref.bib file, located in the directory's Tex folder. Open this file in Rstudio for ease of management, else open it in your preferred Tex environment. Add and manage your article details here for simplicity - once saved, it will self-adjust in your paper.
+When dealing with financial markets and portfolio creation it is paramount for an investor or risk managers to understand the risk involved in their investment decisions. Within financial markets, volatility is often evaluated as a measure of uncertainty and risk. Thus, through evaluating the volatility structure of indexes we are able to understand the risk structure involved with certain investment decisions. Furthermore, by evaluating the dynamic correlations between indexes we are able to better diversify a portfolio and reduce risk. The main objective of this project is to understand the multivariate volatility structure of local equities and thus understand the relative risk associated with certain investment decisions. 
 
-> I suggest renaming the top line after \@article, as done in the template ref.bib file, to something more intuitive for you to remember. Do not change the rest of the code. Also, be mindful of the fact that bib references from google scholar may at times be incorrect. Reference Latex forums for correct bibtex notation.
+The use of Dynamic Conditional Correlation (DCC) GARCH models to evaluate market dynamics and dynamic correlations has become more frequent in portfolio creation and financial theory. @boudt2013robust make use of an extension of a DCC GARCH model to forecasting the covariance matrix of the daily EUR/USD and Yen/USD return series [@boudt2013robust]. Additionally, @shiferaw2019time run a multivariate DCC-GARCH model to evaluate time varying correlation between energy price dynamics and agricultural commodity to name a few [@shiferaw2019time]. 
 
-To reference a section, you have to set a label using ``\\label'' in R, and then reference it in-text as e.g. referencing a later section, Section \ref{Meth}.
+Understanding this topic can be vitally important for investors and portfolio managers when making investment decisions. Realizing the risk exposure a portfolio is inherently exposed to is crucial when making investment decisions. Thus, by modeling the volatility of local equities an investor can make more informed investment decisions based on the intended level of risk the investors wants to take on. This project aims to achieve this analysis through a Dynamic Conditional Correlation (DCC) GARCH model capturing the market dynamics and volatility structures of local sectors and indexes. This model is renowned for its proficiency in assessing multivariate time series data, particularly its capability to capture the evolving correlations between different financial time series. 
 
-Writing in Rmarkdown is surprizingly easy - see [this website](https://www.rstudio.com/wp-content/uploads/2015/03/rmarkdown-reference.pdf) cheatsheet for a summary on writing Rmd writing tips.
+The results of this study find the Resource sector to be the most volatile with the ALSI and Industrial sector being the least volatile. 
 
-# Data  {-}
+The remainder of this paper is ordered as follows: The next section covers the Data and Methodology, followed by the Results section, followed by the discussion section and lastly the Conclusion. 
 
-Notice how I used the curly brackets and dash to remove the numbering of the data section.
 
-Discussion of data should be thorough with a table of statistics and ideally a figure.
 
-In your tempalte folder, you will find a Data and a Code folder. In order to keep your data files neat, store all of them in your Data folder. Also, I strongly suggest keeping this Rmd file for writing and executing commands, not writing out long pieces of data-wrangling. In the example below, I simply create a ggplot template for scatter plot consistency. I suggest keeping all your data in a data folder.
+# Data Methodology \label{Data Methodology}
 
-<!-- The following is a code chunk. It must have its own unique name (after the r), or no name. After the comma follows commands for R which are self-explanatory. By default, the code and messages will not be printed in your pdf, just the output: -->
+Throughout this paper multivariate volatility modeling techniques will be used with the focus on understanding the dynamic relationships and co-movements of volatility across multiple sectors/indexes within the local equities market. 
 
-```{r Figure1,  warning =  FALSE, fig.align = 'center', fig.cap = "Caption Here \\label{Figure1}", fig.ext = 'png', fig.height = 3, fig.width = 6}
+Of the MV-volatility modeling techniques that there are available, I will be utilizing the DCC-GARCH model. My aim is to use DCC models in the multivariate volatility analysis as these models are simpler and relax the constraint of a fixed correlation structure which is assumed by the CCC model, which allows for estimates of time varying correlation. I will be conducting the DCC-GARCH volatility model in R statistical package. 
 
-  # This is just a random plot to show you a plot. This is done if the getwd() does not point to your Template's directory.
-  # Set WD below to your project's working directory.
+The data I am using holds the returns for the following indexes/sectors, ALSI, Financial Sector, Industrial Sector, jsapy index and the Resource Sector.
 
-  g <-
-  ggplot(data = mtcars) +
-  geom_point(aes(x = disp, y = hp, color = cyl)) +
-  theme_bw() +
-  # theme(legend.position = "none") +
-  theme(plot.title = element_text(size = 10)) +
-  theme(axis.title = element_text(size = 10),
-        axis.title.x = element_text()) +
-  labs(y = "y-axis", x = "x-axis", title = "Some amazing plot")
+## Variation in index returns 
 
-g
+Figure \ref{Figure1} below plots the time series analysis of each indexes returns. The importance of this plot for this analysis lies in it's ability to portray the variance structure in each indexes returns. By visualizing the return structure of an index through time we are able to identify the most volatile and thus more risky indexes. 
+
+While holding the y-axis fixed, figure \ref{Figure1} shows that the most volatile index/sector is that of the Resource sector.  While the ALSI and Industrial sector appear to be the least volatile and thus lowest risk investment opportunities. 
+
+To further evaluate the return structure of the indexes/sectors in question figure \ref{Figure2} analyses the distribution of returns through a histogram plot. 
+
+```{r Figure1,  warning =  FALSE, fig.align = 'center', fig.cap = "Time Series Analysis of Returns \\label{Figure1}", fig.ext = 'png', fig.height = 5, fig.width = 6}
+
+# Using ggplot2 to create time series plots of the selected indices' returns
+Index_return_plot <- ggplot(LCL_Indices_Selected, aes(x = date, y = Returns, color = Name)) + 
+  geom_line() + 
+  facet_wrap(~Name, scales = "fixed") +  # Ensures comparable y-axis scales across facets
+  theme_minimal() +
+  ggtitle("Time Series Plot of Indices Returns with Fixed Y-Axis")
+
+# Displaying the plot
+Index_return_plot
+
 
 ```
 
-To make your graphs look extra nice in latex world, you could use Tikz device. Replace dev - 'png' with 'tikz' in the chunk below. Notice this makes the build time longer and produces extra tex files - so if you are comfortable with this, set your device to Tikz and try it out:
+## Analyzing the Distribution of Returns
 
-```{r Figure2, warning =  FALSE, fig.align = 'center', fig.cap = "Caption Here \\label{Figure2}", fig.height = 3, fig.width = 6, dev = 'png'}
+Through figure \ref{Figure1} we have identified the resource sector as the most volatile and thus most risky investment option, while the ALSI and industrial sector to be the least volatile. To build on this analysis I run a histogram plot of the return structure. Through this plot we are able to identify any fat tails or skewness in returns as well as identify the index/sector with the widest variation in returns. 
 
-ExampleData <- read_rds( "data/Example_data.rds")
+The results of figure \ref{Figure2} below are inline with that found in figure \ref{Figure1} above. The resource sector once again appears to be the most volatile with the ALSI and industrial sector appearing to be the least volatile. 
 
-source("code/Example_Plot_Scatter.R") # Load a function from your 'code' folder. This e.g. plots scatters to your own preferences.
-source( "code/Data_Create.R") #
+Following the analysis of figures \ref{Figure1} and \ref{Figure2} we have now obtained a better understanding of the return structure and volatility of the indexes/sectors in question. Thus, we are now able to proceed to the multivariate volatility analysis using the DCC-GARCH model. However, Before I fit any GARCH models to my data I need evaluate the presence of any ARCH effects. If there are no ARCH effects present, it does not make sense to run any GARCH models for this volatility analysis. To test for ARCH effects I perform the McLeod-Li test. This test checks for auto regressive conditional heteroskedasticity (ARCH) in the time series data [@wang2005testing]. If present the p-values will be very close to 0, indicating that the volatility within the variables changes over time. Thus, it is viable to use GARCH models. This test is done in the next section.  
 
-ExampleData <- Data_Create(N = 100) # Same as the ExampleData loaded above - this is just a function to create the stored data.
+```{r Figure2,  warning =  FALSE, fig.align = 'center', fig.cap = "Distribution of Returns \\label{Figure2}", fig.ext = 'png', fig.height = 5, fig.width = 6}
 
-g <- Example_Plot_Scatter(DataInput = ExampleData,
-                          X = "Height_Score",
-                          Y = "Weight_Score",
-                          Z = "Agility_Score",
-                          Theme = theme_bw(), # run ?ggthemes for other themes.
-                          Title = "", # I prefer to use the caption set above.
-                          Ylab = "Height",
-                          Xlab = "Lenght",
-                          LegendTitle = "Agility",
-                          TitleSize = 10,
-                          LabSize = 10)
+# Creating histograms for the distribution of returns for each index
+Return_distribution_hist <- ggplot(LCL_Indices_Selected, aes(x = Returns, fill = Name)) + 
+  geom_histogram(bins = 30, color = "black") +
+  facet_wrap(~Name, scales = "fixed") +  # Fixed scales for x-axis across facets
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +  # Tilting x-axis labels for readability
+  ggtitle("Distribution of Returns for Indices with Fixed X-Axis")
 
-g
-
-# Although the functions above are really simple, the principle is simple: containing calculations and data wrangling in their own functions will make this template much cleaner and more manageable.
-# When you start working, delete these meaningless functions and replace with your own...
+Return_distribution_hist
 
 ```
 
-To reference the plot above, add a ``\\label'' after the caption in the chunk heading, as done above. Then reference the plot as such: As can be seen, Figures \ref{Figure1}  and \ref{Figure2} are excellent, with Figure \ref{Figure2} being particularly aesthetically pleasing due to its device setting of Tikz. The nice thing now is that it correctly numbers all your figures (and sections or tables) and will update if it moves. The links are also dynamic.
 
-I very strongly suggest using ggplot2 (ideally in combination with dplyr) using the ggtheme package to change the themes of your figures.
+## Testing for ARCH Effects
 
-Also note the information that I have placed above the chunks in the code chunks for the figures. You can edit any of these easily - visit the Rmarkdown webpage for more information.
+The results in table 2.1 below provide evidence of ARCH effects. All p-values are close to zero which indicates that there is statistical significance indicating that the volatility between the variables change over time. Thus, it is viable to make use of a GARCH model to conduct the volatility analysis. 
 
-# Splitting a page
-
-You can also very easily split a page using built-in Pandoc formatting. I comment this out in the code (as this has caused issues building the pdf for some users - which I presume to be a Pandoc issue), but you are welcome to try it out yourself by commenting out the following section in your Rmd file.
+In the next section I will make use of the DCC-GARCH model to plot the Dynamic Conditional Correlation plots and report the results. 
 
 
-<!-- :::::: {.columns data-latex="[T]"} -->
-<!-- ::: {.column data-latex="{0.7\textwidth}"} -->
-<!-- ```{r, echo=FALSE, fig.width=4, fig.height=4} -->
-<!-- par(mar = c(4, 4, .2, .1)) -->
-<!-- plot(cars, pch = 19) -->
-<!-- ``` -->
-<!-- ::: -->
-<!-- ::: {.column data-latex="{0.05\textwidth}"} -->
-<!-- \ -->
-<!-- ::: -->
-<!-- ::: {.column data-latex="{0.2\textwidth}"} -->
-<!-- \scriptsize -->
+```{r}
+# Calculating the date range for each index
+date_ranges <- LCL_Indices_Selected %>%
+  group_by(Name) %>%
+  summarize(Start_Date = min(date, na.rm = TRUE),
+            End_Date = max(date, na.rm = TRUE))
+```
 
-<!-- ## Data {-} -->
-<!-- The figure on the left-hand side shows the `cars` data. -->
+```{r}
+# Defining a consistent time range for the analysis
+start_date <- as.Date("2002-02-28")  # Start date
+end_date <- as.Date("2023-11-30")    # End date
 
-<!-- Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do -->
-<!-- eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut -->
-<!-- enim ad minim veniam, quis nostrud exercitation ullamco laboris -->
-<!-- nisi ut aliquip ex ea commodo consequat. -->
-<!-- ::: -->
-<!-- :::::: -->
-
-
-
-#  Methodology \label{Meth}
-
-## Subsection
-Ideally do not overuse subsections. It equates to bad writing.^[This is an example of a footnote by the way. Something that should also not be overused.]
-
-## Math section
-
-Equations should be written as such:
-
-\begin{align}
-\beta = \sum_{i = 1}^{\infty}\frac{\alpha^2}{\sigma_{t-1}^2} \label{eq1} \\
-\int_{x = 1}^{\infty}x_{i} = 1 \notag
-\end{align}
-
-If you would like to see the equations as you type in Rmarkdown, use $ symbols instead (see this for yourself by adjusted the equation):
-
-$$
-\beta = \sum_{i = 1}^{\infty}\frac{\alpha^2}{\sigma_{t-1}^2} \\
-\int_{x = 1}^{\infty}x_{i} = 1
-$$
-
-Note the equation above - this should appear in math in Rstudio. Writing nice math requires practice. Note I used a forward slashes to make a space in the equations. I can also align equations using  __\&__, and set to numbering only the first line. Now I will have to type ``begin equation'' which is a native \LaTeX command. Here follows a more complicated equation that you want aligned (using \& sign) and numbered:
-
-
-\begin{align}
-	y_t &= c + B(L) y_{t-1} + e_t   \label{eq2}    \\ \notag
-	e_t &= H_t^{1/2}  z_t ; \quad z_t \sim  N(0,I_N) \quad \& \quad H_t = D_tR_tD_t \\ \notag
-		D_t^2 &= {\sigma_{1,t}, \dots, \sigma_{N,t}}   \\ \notag
-		\sigma_{i,t}^2 &= \gamma_i+\kappa_{i,t}  v_{i, t-1}^2 +\eta_i  \sigma_{i, t-1}^2, \quad \forall i \\ \notag
-		R_{t, i, j} &= {diag(Q_{t, i, j}}^{-1}) . Q_{t, i, j} . diag(Q_{t, i, j}^{-1})  \\ \notag
-		Q_{t, i, j} &= (1-\alpha-\beta)  \bar{Q} + \alpha  z_t  z_t'  + \beta  Q_{t, i, j} \notag
-\end{align}
-
-Note that in \ref{eq2} I have aligned the equations by the equal signs. I also want only one tag, and I create spaces using ``quads''.
-
-See if you can figure out how to do complex math using the two examples provided in \ref{eq1} and \ref{eq2}.
-
-<!-- $$ -->
-<!-- This is a commented out section in the writing part. -->
-<!-- Comments are created by highlighting text, amnd pressing CTL+C -->
-<!-- \\begin{align} -->
-<!-- \\beta = \\alpha^2 -->
-<!-- \end{align} -->
-<!-- $$ -->
-
-# Results
-
-Tables can be included as follows. Use the _xtable_ (or kable) package for tables. Table placement = H implies Latex tries to place the table Here, and not on a new page (there are, however, very many ways to skin this cat. Luckily there are many forums online!).
-
-
-```{r ShortTable, results = 'asis'}
-
-library(xtable)
-data <- mtcars[1:5,] %>% tibble::as_tibble()
-
-table <- xtable(data, caption = "Short Table Example \\label{tab1}")
-  print.xtable(table,
-             # tabular.environment = "longtable",
-             floating = TRUE,
-             table.placement = 'H',
-             # scalebox = 0.3,
-             comment = FALSE,
-             caption.placement = 'bottom'
-             )
+# Filtering the data set for the defined time range
+LCL_Indices_Filtered <- LCL_Indices_Selected %>%
+  filter(date >= start_date & date <= end_date)
 
 ```
 
-To reference calculations __in text__, _do this:_ From table \ref{tab1} we see the average value of mpg is `r mean(mtcars[1:5,]$mpg)`.
+```{r}
+# Loading necessary libraries
+pacman::p_load("tbl2xts", "MTS")
 
-Including tables that span across pages, use the following (note that I add below the table: ``continue on the next page''). This is a neat way of splitting your table across a page.
-
-Use the following default settings to build your own possibly long tables. Note that the following will fit on one page if it can, but cleanly spreads over multiple pages:
-
-```{r LongTable, results = 'asis'}
-
-library(xtable)
-
-data = mtcars %>% tibble::as_tibble()
-  addtorow          <- list()
-  addtorow$pos      <- list()
-  addtorow$pos[[1]] <- c(0)
-  addtorow$command  <- c(paste("\\hline \n",
-                               "\\endhead \n",
-                               "\\hline \n",
-                               "{\\footnotesize Continued on next page} \n",
-                               "\\endfoot \n",
-                               "\\endlastfoot \n",sep=""))
-table <- xtable(data, caption = "Long Table Example")
-  print.xtable(table,
-             tabular.environment = "longtable",
-             floating = FALSE, # Leave this as is.
-             table.placement = 'H', # Leave this as is.
-             booktabs = T, # Aesthetics
-             include.rownames = FALSE,  # Typically you don't want this in a table.
-             add.to.row = addtorow, # For adding the Continued on next page part...
-             comment = FALSE,
-             caption.placement = 'top',  # Where do you want the caption?
-             size="\\fontsize{12pt}{13pt}\\selectfont"  # Size of text in table..
-             )
-# See https://cran.r-project.org/web/packages/xtable/vignettes/xtableGallery.pdf for table inspiration
+# Converting the filtered dataset to an xts object for time series analysis
+xts_rtn <- LCL_Indices_Filtered %>% tbl_xts(., cols_to_xts = "Returns", spread_by = "Name")
 ```
 
-\hfill
 
-<!-- hfill can be used to create a space, like here between text and table. -->
-
-
-## Huxtable
-
-Huxtable is a very nice package for making working with tables between Rmarkdown and Tex easier.
-
-This cost some adjustment to the Tex templates to make it work, but it now works nicely.
-
-See documentation for this package [here](https://hughjonesd.github.io/huxtable/huxtable.html). A particularly nice addition of this package is for making the printing of regression results a joy (see [here](https://hughjonesd.github.io/huxtable/huxtable.html#creating-a-regression-table)). Here follows an example:
-
-
-If you are eager to use huxtable, comment out the Huxtable table in the Rmd template, and uncomment the colortbl package in your Rmd's root.
-
-Note that I do not include this in the ordinary template, as some latex users have complained it breaks when they build their Rmds (especially those using tidytex - I don't have this problem as I have the full Miktex installed on mine). Up to you, but I strongly recommend installing the package manually and using huxtable. To make this work, uncomment the _Adding additional latex packages_ part in yaml at the top of the Rmd file. Then comment out the huxtable example in the template below this line. Reknit, and enjoy.
-
-```{r, results = 'asis'}
-
-if(!require(huxtable)) install.packages(huxtable)
-library(huxtable)
-data(diamonds, package = 'ggplot2')
-Title <- "Regression Output"
-Label <- "Reg01"
-lm1 <- lm(price ~ carat, diamonds)
-lm2 <- lm(price ~ depth, diamonds)
-lm3 <- lm(price ~ carat + depth, diamonds)
-htab <-
-huxreg(lm1, lm2, lm3,
-                statistics = c(N = "nobs", R2 = "r.squared"),
-                note = "%stars%.") %>%
-  set_caption(Title) %>%
-  set_label(Label)
-# More settings:
-font_size(htab) <- 12
-# Let's change regression names: this is slightly hacky, but works. Comment out this section to see what the default looks like:
-  Names <- c( "Reg1", "Reg2", "Reg3")
-  for(i in 1:length(Names)) {
-    htab[1,][[1+i]] <- Names[i]
-  }
-# Now simply call the table:
-htab
-
+```{r ,results='hide'}
+# Performing the McLeod-Li test to check for ARCH effects
+MarchTest(xts_rtn)
 ```
 
-FYI - R also recently introduced the gt package, which is worthwhile exploring too.
+```{r}
 
-# Lists
+test_results <- data.frame(
+  Test = c("Q(m) of squared series (LM test)", 
+           "Rank-based Test", 
+           "Q_k(m) of squared series", 
+           "Robust Test (5%)"),
+  TestStatistic = c(44.88386, 108.2555, 341.5009, 321.4297),
+  PValue = c(2.282185e-06, 0, 0.000104816, 0.001529345)
+)
 
-To add lists, simply using the following notation
+# Using knitr to create a LaTeX formatted table
+knitr::kable(test_results, format = "latex", booktabs = TRUE,
+             caption = "McLeod-Li Test Results for Autoregressive Conditional Heteroskedasticity")
 
-* This is really simple
-
-    + Just note the spaces here - writing in R you have to sometimes be pedantic about spaces...
-
-* Note that Rmarkdown notation removes the pain of defining \LaTeX environments!
-
-# Conclusion
-
-I hope you find this template useful. Remember, stackoverflow is your friend - use it to find answers to questions. Feel free to write me a mail if you have any questions regarding the use of this package. To cite this package, simply type citation("Texevier") in Rstudio to get the citation for @Texevier (Note that uncited references in your bibtex file will not be included in References).
+```
 
 <!-- Make title of bibliography here: -->
 <!-- \newpage -->
