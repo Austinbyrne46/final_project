@@ -392,6 +392,160 @@ Robust Test (5\%) & 321.42970 & 0.0015293\\
 \end{tabular}
 \end{table}
 
+\hypertarget{results}{%
+\section{\texorpdfstring{Results
+\label{Results}}{Results }}\label{results}}
+
+In the following section I plot a volatility comparison plot with the
+purpose of further understanding which index/sector inherently is
+exposed to the most volatility. Furthermore, I run the Dynamic
+Conditional Correlation plots for each index/sector.
+
+\hypertarget{volatility-comparisson}{%
+\subsection{Volatility Comparisson}\label{volatility-comparisson}}
+
+Figure \ref{Figure3} below represents the volatility comparison plot.
+Through evaluating this plot it is once again evident that the resources
+sector is consistently the most volatile index/sector. Furthermore, post
+2020 their is a significant spike in the volatility in the Financials
+sector and the jsapy, thus suggesting the Financials Sector and jsapy
+index are the most sensitive to large shocks in the economy, such as the
+COVID-19 pandemic. Additionally, the Industrial sector remains the least
+volatile along with the ALSI.
+
+Now that I have further strengthened my understanding of the nature of
+volatility for each index/sector, I will now focus my analysis on the
+conditional correlations in the next section.
+
+\begin{figure}[H]
+
+{\centering \includegraphics{DCC_GARCH_22582053_files/figure-latex/Figure3-1} 
+
+}
+
+\caption{Volatility comparisson plot \label{Figure3}}\label{fig:Figure3}
+\end{figure}
+
+\hypertarget{dynamic-conditional-correlations}{%
+\subsection{Dynamic Conditional
+Correlations}\label{dynamic-conditional-correlations}}
+
+In this section I plot the Dynamic Conditional Correlation plots for
+each index/sector. Through these plots we are able to identify which
+index's/sectors are correlated over time. This is important information
+when creating optimal portfolios, ensuring diversification and reducing
+risk for portfolio managers and investors alike.
+
+Figure \ref{Figure4} represents the Dynamic Conditional Correlations
+plot for both the Resources sector and jsapy index. Figure \ref{Figure5}
+represents the Dynamic Conditional Correlations plot for the Financial
+and Industrial sector. Lastly, Figure \ref{Figure6} represents the
+Dynamic Conditional Correlations plot for the ALSI.
+
+Figure \ref{Figure4} illustrates the Resource sector has a high dynamic
+correlation with the ALSI with a correlation above 0.5 throughout the
+entire time frame. Furthermore, the Resources sector has the lowest
+dynamic correlation with the jsapy index. Additionally, Figure
+\ref{Figure4} illustrates that the jsapy index has a high dynamic
+correlation with the Financial sector and lowest dynamic correlation
+with the Resource sector.
+
+Figure \ref{Figure5} illustrates that the Financial sector holds a high
+dynamic correlation with the jsapy index, ALSI and the Industrial
+sector. While holding a low dynamic correlation with the Resource
+sector. Furthermore, Figure \ref{Figure5} illustrates that the
+Industrial Sector holds a strong dynamic correlation with the ALSI and
+holds its lowest dynamic correlation with the Resource sector and jsapy.
+
+Lastly, Figure\ref{Figure6} illustrates that the ALSI holds a strong
+dynamic correlation with the Industrial and Resource sector while
+holding its lowest dynamic correlation with the jsapy index.
+
+\begin{figure}[H]
+
+{\centering \includegraphics{DCC_GARCH_22582053_files/figure-latex/Figure4-1} 
+
+}
+
+\caption{Dynamic Conditional Correlations: Resources and jsapy \label{Figure4}}\label{fig:Figure4}
+\end{figure}
+
+\begin{figure}[H]
+
+{\centering \includegraphics{DCC_GARCH_22582053_files/figure-latex/Figure5-1} 
+
+}
+
+\caption{Dynamic Conditional Correlations: Financials and Industrials \label{Figure5}}\label{fig:Figure5}
+\end{figure}
+
+\begin{figure}[H]
+
+{\centering \includegraphics{DCC_GARCH_22582053_files/figure-latex/Figure6-1} 
+
+}
+
+\caption{Dynamic Conditional Correlations: ALSI \label{Figure6}}\label{fig:Figure6}
+\end{figure}
+
+\hypertarget{discussion}{%
+\section{\texorpdfstring{Discussion
+\label{Discussion}}{Discussion }}\label{discussion}}
+
+In the above analysis I have evaluated the overall volatility of each
+index/sector and compared the results with each other. Furthermore, I
+have evaluated the dynamic correlations between each index/sector. With
+these results one can identify which indexes/sector hold the highest
+risk and which indexes/sectors to combine in a portfolio to induce
+diversification and risk mitigation.
+
+Through my analysis it is evident that the Resource sector holds the
+highest volatility and thus highest risk while the ALSI and Industrial
+sector hold the lowest volatility and thus lowest source of risk. Thus
+if you were attempting to build a low risk portfolio you would hold a
+high proportion of the ALSI and Industrial sector. If this were the case
+and you intended to impose some diversification into your portfolio we
+could evaluate the Dynamic Conditional Correlation plots for the ALSI
+and Industrial sector.
+
+With respect to the ALSI investing in the jsapy index would provide for
+increased diversification in your portfolio. This addition to the
+portfolio could be warranted as the jsapy index holds average volatility
+and thus average risk. Therefore, by introducing the jsapy to the
+portfolio we are increasing the diversification while not exposing the
+portfolio to a great deal of risk. With respect to the Industrial Sector
+investing in the Resource sector would induce diversification although
+increasing risk through the highly volatile Resource Sector.
+
+Therefore, a portfolio that holds a large portion in the ALSI and
+Industrial sector with slight investment in the jsapy and even slighter
+investment in the Resource sector will provide for a low risk,
+diversified investment portfolio.
+
+\hypertarget{conclusion}{%
+\section{\texorpdfstring{Conclusion
+\label{Conclusion}}{Conclusion }}\label{conclusion}}
+
+To conclude, throughout this study I evaluate the return structure and
+volatility of the ALSI, Financial Sector, Industrial Sector, jsapy index
+and the Resource Sector. Furthermore, by making use of the DCC-GARCH
+volatility model I was able to establish the dynamic conditional
+correlation for each index/sector in question.
+
+The results found the Resource sector to be the most volatile and thus
+most risky while finding the ALSI and Industrial sector to be the least
+volatile and thus lowest risk options of the available indexes/sectors.
+Through evaluating the respective dynamic correlations it is found that
+the most optimal portfolio construction could potentially be, a
+portfolio that holds a large portion in the ALSI and Industrial sector
+with slight investment in the jsapy and even slighter investment in the
+Resource sector as this portfolio would induce a low risk and well
+diversified portfolio.
+
+The limitations to the study are that we only focus on the ALSI,
+Financial Sector, Industrial Sector, jsapy index and the Resource
+Sector, thus the results are only limited to these indexes/sectors.
+
 \newpage
 
 \hypertarget{references}{%
@@ -417,20 +571,6 @@ modelling autoregressive conditional heteroskedasticity of streamflow
 processes. \emph{Nonlinear processes in Geophysics}. 12(1):55--66.
 
 \end{CSLReferences}
-
-\hypertarget{appendix}{%
-\section*{Appendix}\label{appendix}}
-\addcontentsline{toc}{section}{Appendix}
-
-\hypertarget{appendix-a}{%
-\subsection*{Appendix A}\label{appendix-a}}
-\addcontentsline{toc}{subsection}{Appendix A}
-
-Some appendix information here
-
-\hypertarget{appendix-b}{%
-\subsection*{Appendix B}\label{appendix-b}}
-\addcontentsline{toc}{subsection}{Appendix B}
 
 \bibliography{Tex/ref}
 

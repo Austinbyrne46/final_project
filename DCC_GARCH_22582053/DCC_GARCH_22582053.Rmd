@@ -330,6 +330,225 @@ knitr::kable(test_results, format = "latex", booktabs = TRUE,
 
 ```
 
+# Results \label{Results}
+
+In the following section I plot a volatility comparison plot with the purpose of further understanding which index/sector inherently is exposed to the most volatility. Furthermore, I run the Dynamic Conditional Correlation plots for each index/sector. 
+
+## Volatility Comparisson
+
+Figure \ref{Figure3} below represents the volatility comparison plot. Through evaluating this plot it is once again evident that the resources sector is consistently the most volatile index/sector. Furthermore, post 2020 their is a significant spike in the volatility in the Financials sector and the jsapy, thus suggesting the Financials Sector and jsapy index are the most sensitive to large shocks in the economy, such as the COVID-19 pandemic. Additionally, the Industrial sector remains the least volatile along with the ALSI. 
+
+Now that I have further strengthened my understanding of the nature of volatility for each index/sector, I will now focus my analysis on the conditional correlations in the next section. 
+
+```{r, results='hide'}
+# Loading the rmgarch library for advanced GARCH modeling
+library(rmgarch)
+
+# Preprocessing the data using dccPre function from rmgarch
+# This includes specifying that the mean of each series is included in the model (include.mean = TRUE)
+# and setting the autoregressive order for the mean equation to zero (p = 0)
+DCCPre <- dccPre(xts_rtn, include.mean = TRUE, p = 0) 
+```
+
+
+
+
+```{r}
+# Loading necessary library
+pacman::p_load("zoo")
+
+# Extracting the marginal volatilities from the DCC preprocessing output
+Vol <- DCCPre$marVol
+colnames(Vol) <- colnames(xts_rtn)
+
+# Converting to a data frame and adding the date column back
+Vol <- data.frame(cbind(date = index(xts_rtn), Vol)) %>%
+  mutate(date = as.Date(date)) %>%  # Convert to Date format
+  tbl_df()
+
+# Reshaping the data for plotting
+TidyVol <- Vol %>% gather(Indexes, Sigma, -date)
+
+```
+
+```{r Figure3,  warning =  FALSE, fig.align = 'center', fig.cap = "Volatility comparisson plot \\label{Figure3}", fig.ext = 'png', fig.height = 5, fig.width = 6}
+# Creating the volatility comparison plot
+Volatility_Comparison_Plot <- ggplot(TidyVol, aes(x = date, y = Sigma, colour = Indexes)) +
+  geom_line() +
+  theme_minimal() +
+  ggtitle("Volatility Comparison Plot")  # Adding a title to the plot
+
+# Displaying the plot
+print(Volatility_Comparison_Plot)
+```
+
+```{r, results='hide'}
+#Prepairning for the DCC model fitting 
+# Extracting standardized residuals from the DCC preprocessing output
+StdRes <- DCCPre$sresi
+
+# Detaching packages no longer needed
+detach("package:tidyverse", unload=TRUE)
+detach("package:tbl2xts", unload=TRUE)
+
+# Fitting the DCC model to the standardized residuals
+DCC <- dccFit(StdRes, type="Engle")
+```
+
+
+```{r}
+# Reloading tidyverse, tbl2xts, and broom packages
+pacman::p_load("tidyverse", "tbl2xts", "broom")
+
+```
+
+```{r, results='hide'}
+# Extracting time-varying correlations from the DCC model
+Rhot <- DCC$rho.t
+
+# Function to rename and reformat the DCC correlations for visualization
+renamingdcc <- function(ReturnSeries, DCC.TV.Cor) {
+    ncolrtn <- ncol(ReturnSeries)
+    namesrtn <- colnames(ReturnSeries)
+
+    nam <- c()
+    xx <- mapply(rep, times = ncolrtn:1, x = namesrtn)
+
+    for (j in 1:(ncolrtn)) {
+        for (i in 1:(ncolrtn)) {
+            nam[(i + (j-1)*(ncolrtn))] <- paste(xx[[j]][1], xx[[i]][1], sep="_")
+        }
+    }
+
+    colnames(DCC.TV.Cor) <- nam
+    DCC.TV.Cor <- data.frame(cbind(date = index(ReturnSeries), DCC.TV.Cor)) %>%
+        mutate(date = as.Date(date)) %>% tbl_df()
+    DCC.TV.Cor <- DCC.TV.Cor %>% gather(Pairs, Rho, -date)
+
+    return(DCC.TV.Cor)
+}
+
+# Applying the renaming function to the DCC correlations
+Rhot <- renamingdcc(ReturnSeries = xts_rtn, DCC.TV.Cor = Rhot)
+
+# Displaying the first few rows of the processed correlations
+head(Rhot %>% arrange(date))
+
+```
+
+## Dynamic Conditional Correlations
+
+In this section I plot the Dynamic Conditional Correlation plots for each index/sector. Through these plots we are able to identify which index's/sectors are correlated over time. This is important information when creating optimal portfolios, ensuring diversification and reducing risk for portfolio managers and investors alike. 
+
+Figure \ref{Figure4} represents the Dynamic Conditional Correlations plot for both the Resources sector and jsapy index. Figure \ref{Figure5} represents the Dynamic Conditional Correlations plot for the Financial and Industrial sector. Lastly, Figure \ref{Figure6} represents the Dynamic Conditional Correlations plot for the ALSI. 
+
+Figure \ref{Figure4} illustrates the Resource sector has a high dynamic correlation with the ALSI with a correlation above 0.5 throughout the entire time frame. Furthermore, the Resources sector has the lowest dynamic correlation with the jsapy index. Additionally, Figure \ref{Figure4} illustrates that the jsapy index has a high dynamic correlation with the Financial sector and lowest dynamic correlation with the Resource sector. 
+
+Figure \ref{Figure5} illustrates that the Financial sector holds a high dynamic correlation with the jsapy index, ALSI and the Industrial sector. While holding a low dynamic correlation with the Resource sector. Furthermore, Figure \ref{Figure5} illustrates that the Industrial Sector holds a strong dynamic correlation with the ALSI and holds its lowest dynamic correlation with the Resource sector and jsapy. 
+
+Lastly, Figure\ref{Figure6} illustrates that the ALSI holds a strong dynamic correlation with the Industrial and Resource sector while holding its lowest dynamic correlation with the jsapy index. 
+
+```{r}
+pacman::p_load(ggthemes)
+
+# Creating a plot for the dynamic correlations of ALSI with other indices
+g1 <- ggplot(Rhot %>% filter(grepl("ALSI_", Pairs), !grepl("_ALSI", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: ALSI")
+
+
+```
+
+```{r}
+
+# Creating a plot for the dynamic correlations of Financials with other indices
+g2 <- ggplot(Rhot %>% filter(grepl("Financials_", Pairs), !grepl("_Financials", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: Financials")
+
+
+```
+
+```{r}
+# Creating a plot for the dynamic correlations of Industrials with other indices
+g3 <- ggplot(Rhot %>% filter(grepl("Industrials_", Pairs), !grepl("_Industrials", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: Industrials")
+
+```
+
+
+```{r}
+# Creating a plot for the dynamic correlations of Resources with other indices
+g4 <- ggplot(Rhot %>% filter(grepl("Resources_", Pairs), !grepl("_Resources", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: Resources")
+
+```
+
+
+```{r}
+# Creating a plot for the dynamic correlations of jsapy with other indices
+g5 <- ggplot(Rhot %>% filter(grepl("jsapy_", Pairs), !grepl("_jsapy", Pairs))) + 
+  geom_line(aes(x = date, y = Rho, colour = Pairs)) + 
+  theme_hc() +
+  ggtitle("Dynamic Conditional Correlations: jsapy")
+```
+
+```{r Figure4,  warning =  FALSE, fig.align = 'center', fig.cap = "Dynamic Conditional Correlations: Resources and jsapy \\label{Figure4}", fig.ext = 'png', fig.height = 5, fig.width = 6}
+pacman::p_load(patchwork)
+
+combined_plot_1 <- g4 + g5 +
+  plot_layout(ncol = 1, nrow = 2)  
+
+
+print(combined_plot_1)
+
+```
+
+```{r Figure5,  warning =  FALSE, fig.align = 'center', fig.cap = "Dynamic Conditional Correlations: Financials and Industrials \\label{Figure5}", fig.ext = 'png', fig.height = 5, fig.width = 6}
+combined_plot_2 <- g2 + g3 +
+  plot_layout(ncol = 1, nrow = 2)
+
+print(combined_plot_2)
+```
+
+```{r Figure6,  warning =  FALSE, fig.align = 'center', fig.cap = "Dynamic Conditional Correlations: ALSI \\label{Figure6}", fig.ext = 'png', fig.height =3, fig.width = 6}
+combined_plot_3 <- g1 +
+  plot_layout(ncol = 1, nrow = 1)
+
+print(combined_plot_3)
+```
+
+
+
+# Discussion \label{Discussion}
+
+In the above analysis I have evaluated the overall volatility of each index/sector and compared the results with each other. Furthermore, I have evaluated the dynamic correlations between each index/sector. With these results one can identify which indexes/sector hold the highest risk and which indexes/sectors to combine in a portfolio to induce diversification and risk mitigation. 
+
+Through my analysis it is evident that the Resource sector holds the highest volatility and thus highest risk while the ALSI and Industrial sector hold the lowest volatility and thus lowest source of risk. Thus if you were attempting to build a low risk portfolio you would hold a high proportion of the ALSI and Industrial sector. If this were the case and you intended to impose some diversification into your portfolio we could evaluate the Dynamic Conditional Correlation plots for the ALSI and Industrial sector. 
+
+With respect to the ALSI investing in the jsapy index would provide for increased diversification in your portfolio. This addition to the portfolio could be warranted as the jsapy index holds average volatility and thus average risk. Therefore, by introducing the jsapy to the portfolio we are increasing the diversification while not exposing the portfolio to a great deal of risk. With respect to the Industrial Sector investing in the Resource sector would induce diversification although increasing risk through the highly volatile Resource Sector. 
+
+Therefore, a portfolio that holds a large portion in the ALSI and Industrial sector with slight investment in the jsapy and even slighter investment in the Resource sector will provide for a low risk, diversified investment portfolio. 
+
+
+
+
+# Conclusion \label{Conclusion}
+
+To conclude, throughout this study I evaluate the return structure and volatility of the ALSI, Financial Sector, Industrial Sector, jsapy index and the Resource Sector. Furthermore, by making use of the DCC-GARCH volatility model I was able to establish the dynamic conditional correlation for each index/sector in question. 
+
+The results found the Resource sector to be the most volatile and thus most risky while finding the ALSI and Industrial sector to be the least volatile and thus lowest risk options of the available indexes/sectors. Through evaluating the respective dynamic correlations it is found that the most optimal portfolio construction could potentially be, a portfolio that holds a large portion in the ALSI and Industrial sector with slight investment in the jsapy and even slighter investment in the Resource sector as this portfolio would induce a low risk and well diversified portfolio. 
+
+The limitations to the study are that we only focus on the ALSI, Financial Sector, Industrial Sector, jsapy index and the Resource Sector, thus the results are only limited to these indexes/sectors. 
+
+
+
 <!-- Make title of bibliography here: -->
 <!-- \newpage -->
 
@@ -340,11 +559,5 @@ knitr::kable(test_results, format = "latex", booktabs = TRUE,
 <div id="refs"></div>
 
 
-# Appendix {-}
 
-## Appendix A {-}
-
-Some appendix information here
-
-## Appendix B {-}
 
